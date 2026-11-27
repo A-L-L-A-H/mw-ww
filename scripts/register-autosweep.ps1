@@ -102,8 +102,10 @@ function Register-Task {
         [string]$TaskName
     )
 
+    $ntfyArg = if ($NtfyUrl) { "--ntfy-url `'$NtfyUrl`'" } else { "" }
+
     $action = New-ScheduledTaskAction -Execute $CliPath -Argument @"
---clean-safe --apply --json --threshold-gb $ThresholdGB $(if ($NtfyUrl) { "--ntfy-url `"$NtfyUrl`"" })
+--clean-safe --apply --json $ntfyArg
 "@
 
     $triggerParts = $Schedule -split " "
