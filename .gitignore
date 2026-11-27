@@ -1,0 +1,11 @@
+/mw-ww.exe
+/mw-ww.exe~
+/mw-ww-cli
+/mw-ww-cli.exe
+/mw-ww-cli-*
+/bin/
+/dist/
+/frontend/dist/
+/frontend/node_modules/
+*.log
+lab-notes.csv

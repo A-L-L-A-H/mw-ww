@@ -1,0 +1,27 @@
+name: mw-ww CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+      - name: Go vet
+        run: go vet ./internal/... ./cmd/mw-ww-cli/...
+      - name: Go test
+        run: go test -count=1 ./internal/... ./cmd/mw-ww-cli/...
+      - name: Build headless CLI
+        env:
+          CGO_ENABLED: '0'
+        run: go build -o bin/mw-ww-cli ./cmd/mw-ww-cli

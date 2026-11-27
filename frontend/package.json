@@ -1,0 +1,23 @@
+{
+  "name": "mw-ww-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build"
+  },
+  "dependencies": {
+    "@moonwitness/ui": "file:../../mw-design/packages/ui",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "radix-ui": "^1.6.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~5.7.3",
+    "vite": "^8.3.3"
+  }
+}

@@ -1,0 +1,147 @@
+@import '@moonwitness/ui/styles/tokens.css';
+@import '@moonwitness/ui/components.css';
+@font-face {
+  font-family: 'Anton';
+  src: url('../../../mw-design/packages/assets/fonts/Anton-latin.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('../../../mw-design/packages/assets/fonts/JetBrainsMono-latin.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('../../../mw-design/packages/assets/fonts/SpaceGrotesk-latin.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Road Rage';
+  src: url('../../../mw-design/packages/assets/fonts/RoadRage-latin.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'MoonWitness Grunge';
+  src: url('../../../mw-design/packages/assets/fonts/MoonWitnessGrunge-latin.woff2') format('woff2');
+  font-display: swap;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--mw-background);
+  color: var(--mw-foreground);
+  font-family: var(--mw-font-sans);
+}
+
+.ww-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--mw-space-6) var(--mw-space-5);
+}
+
+.ww-masthead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mw-space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--mw-space-5);
+}
+
+.ww-title {
+  font-family: var(--mw-font-display);
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1;
+  margin: 0;
+}
+
+.ww-tagline {
+  font-family: var(--mw-font-mono);
+  color: var(--mw-ink-soft);
+  font-size: 0.85rem;
+}
+
+.dark .ww-tagline {
+  color: var(--mw-paper-muted);
+}
+
+.ww-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--mw-space-4);
+  margin-bottom: var(--mw-space-5);
+}
+
+.ww-toolbar {
+  display: flex;
+  gap: var(--mw-space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--mw-space-4);
+}
+
+.ww-path {
+  flex: 1 1 420px;
+  min-width: 240px;
+}
+
+.ww-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.ww-table th,
+.ww-table td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--mw-night-outline);
+}
+
+.ww-table th {
+  font-family: var(--mw-font-display);
+  font-weight: normal;
+  letter-spacing: 0.04em;
+}
+
+.ww-path-cell {
+  max-width: 380px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mw-font-mono);
+  font-size: 0.78rem;
+}
+
+.ww-selected {
+  background: color-mix(in srgb, var(--mw-yellow) 12%, transparent);
+}
+
+.ww-notes {
+  margin-top: var(--mw-space-5);
+}
+
+.ww-error {
+  color: var(--mw-error);
+  font-size: 0.85rem;
+}
+
+.ww-alert {
+  border-left: 3px solid var(--mw-warning);
+  padding: var(--mw-space-2) var(--mw-space-3);
+  margin-bottom: var(--mw-space-3);
+  background: color-mix(in srgb, var(--mw-warning) 10%, transparent);
+}
