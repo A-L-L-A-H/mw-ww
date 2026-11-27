@@ -34,6 +34,28 @@ func TestVersionAndDrivesJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &drives); err != nil || len(drives) == 0 {
 		t.Fatalf("unexpected drives JSON: %q err=%v", stdout.String(), err)
 	}
+
+	t.Setenv("USERPROFILE", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), []string{"--empire", "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("--empire failed: code=%d err=%s", code, stderr.String())
+	}
+	var emp sweeper.EmpireSweepSummary
+	if err := json.Unmarshal(stdout.Bytes(), &emp); err != nil || len(emp.Groups) != 5 {
+		t.Fatalf("unexpected empire JSON: %q err=%v", stdout.String(), err)
+	}
+
+	stdout.Reset()
+	stderr.Reset()
+	if code := run(context.Background(), []string{"--watchdog", "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("--watchdog failed: code=%d err=%s", code, stderr.String())
+	}
+	var alerts []sweeper.TrayWatchdogAlert
+	if err := json.Unmarshal(stdout.Bytes(), &alerts); err != nil || len(alerts) == 0 {
+		t.Fatalf("unexpected watchdog JSON: %q err=%v", stdout.String(), err)
+	}
 }
 
 func TestScanCleanSafeAndNtfyWebhook(t *testing.T) {
