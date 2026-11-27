@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   commitlint:
-    name: Commitlint
+    name: commitlint
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -34,7 +34,7 @@ jobs:
         run: npx commitlint --from=origin/main --to=HEAD --extends @commitlint/config-conventional
 
   verify:
-    name: Verify
+    name: verify
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -67,7 +67,7 @@ jobs:
           awk -v v="$total" 'BEGIN{exit !(v>=70)}' || { echo "Coverage $total% < 70%"; exit 1; }
 
   security:
-    name: Security
+    name: security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
