@@ -134,3 +134,74 @@ func TestLabNotesAppendFlushesAndReads(t *testing.T) {
 		t.Fatalf("unexpected rows: %+v", rows)
 	}
 }
+
+func TestEvaluateTrayWatchdogThresholdsAndOptIn(t *testing.T) {
+	drives := []DriveInfo{
+		{Drive: "C", Total: 100 << 30, Free: 3 << 30, UsedPct: 97, Status: "critical"},
+		{Drive: "D", Total: 100 << 30, Free: 12 << 30, UsedPct: 88, Status: "warn"},
+		{Drive: "Z", Total: 100 << 30, Free: 60 << 30, UsedPct: 40, Status: "ok"},
+	}
+
+	cfg := DefaultTrayWatchdogConfig()
+	alerts := EvaluateTrayWatchdog(drives, cfg)
+	if len(alerts) != 3 {
+		t.Fatalf("expected 3 alerts, got %d", len(alerts))
+	}
+	if alerts[0].Level != "critical" || !alerts[0].RequiresConfirmation || !alerts[0].RecommendEmpireSweep {
+		t.Fatalf("unexpected critical alert: %+v", alerts[0])
+	}
+	if alerts[1].Level != "warn" || !alerts[1].RequiresConfirmation || !alerts[1].RecommendEmpireSweep {
+		t.Fatalf("unexpected warn alert: %+v", alerts[1])
+	}
+	if alerts[2].Level != "ok" || alerts[2].RequiresConfirmation || alerts[2].RecommendEmpireSweep {
+		t.Fatalf("unexpected ok alert: %+v", alerts[2])
+	}
+
+	cfg.AutoSweepOptIn = true
+	optInAlerts := EvaluateTrayWatchdog(drives, cfg)
+	if optInAlerts[0].RequiresConfirmation {
+		t.Fatalf("expected RequiresConfirmation=false when AutoSweepOptIn=true")
+	}
+}
+
+func TestBuildEmpireSweepSummaryFiveDomains(t *testing.T) {
+	home := t.TempDir()
+	agDir := filepath.Join(home, ".gemini", "antigravity", "worktrees")
+	dockerDir := filepath.Join(home, ".docker", "buildx")
+	goDir := filepath.Join(home, "AppData", "Local", "go-build")
+	cargoDir := filepath.Join(home, ".cargo", "registry", "cache")
+	rsDir := filepath.Join(home, ".rocksoul", "worktrees")
+
+	for _, d := range []string{agDir, dockerDir, goDir, cargoDir, rsDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "blob.bin"), []byte("0123456789"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	summary := BuildEmpireSweepSummary(home)
+	if len(summary.Groups) != 5 {
+		t.Fatalf("expected 5 Empire domains, got %d", len(summary.Groups))
+	}
+	if summary.TotalReclaimBytes < 50 {
+		t.Fatalf("expected at least 50 reclaimable bytes across 5 domains, got %d", summary.TotalReclaimBytes)
+	}
+	if summary.SafeReclaimBytes < 30 {
+		t.Fatalf("expected at least 30 safe reclaimable bytes (Docker, Go, Cargo), got %d", summary.SafeReclaimBytes)
+	}
+
+	foundDomains := make(map[EmpireDomain]bool)
+	for _, g := range summary.Groups {
+		foundDomains[g.Domain] = true
+		if g.PresentTargets < 1 || g.ReclaimBytes < 10 {
+			t.Fatalf("expected populated domain %s, got %+v", g.Domain, g)
+		}
+	}
+	for _, want := range []EmpireDomain{EmpireAntigravity, EmpireDocker, EmpireGo, EmpireCargo, EmpireRocksoul} {
+		if !foundDomains[want] {
+			t.Fatalf("missing Empire domain %s", want)
+		}
+	}
+}

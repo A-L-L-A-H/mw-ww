@@ -6,7 +6,17 @@ import { ConfirmDialog } from '@moonwitness/ui/components/confirm-dialog';
 import { Input } from '@moonwitness/ui/components/input';
 import { MetricTile } from '@moonwitness/ui/components/metric-tile';
 import { Panel } from '@moonwitness/ui/components/panel';
-import { api, type CleanResult, type DirUsage, type DriveInfo, type HistoryRecord, type ProcessReport, type ScanReport } from './api';
+import {
+  api,
+  type CleanResult,
+  type DirUsage,
+  type DriveInfo,
+  type EmpireSweepSummary,
+  type HistoryRecord,
+  type ProcessReport,
+  type ScanReport,
+  type TrayWatchdogAlert,
+} from './api';
 import './styles.css';
 
 // Wails injects bindings asynchronously; read through the getter at call time.
@@ -26,6 +36,9 @@ export function App() {
   const [path, setPath] = useState('');
   const [report, setReport] = useState<ScanReport | null>(null);
   const [targets, setTargets] = useState<DirUsage[]>([]);
+  const [empire, setEmpire] = useState<EmpireSweepSummary | null>(null);
+  const [watchdogAlerts, setWatchdogAlerts] = useState<TrayWatchdogAlert[]>([]);
+  const [optInProcessGuard, setOptInProcessGuard] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<HistoryRecord[]>([]);
   const [notesPath, setNotesPath] = useState('');
@@ -44,10 +57,16 @@ export function App() {
       const home = await B()!.HomeDir();
       setPath((current) => current || home);
       setTargets(await B()!.QuickAudit());
+      if (B()!.EmpireSweep) {
+        setEmpire(await B()!.EmpireSweep!());
+      }
+      if (B()!.TrayWatchdog) {
+        setWatchdogAlerts(await B()!.TrayWatchdog!(optInProcessGuard));
+      }
     } catch (err) {
       setError(String(err));
     }
-  }, []);
+  }, [optInProcessGuard]);
 
   useEffect(() => {
     // Wails injects window.go.main.App asynchronously; poll briefly until ready.
@@ -76,18 +95,26 @@ export function App() {
   };
 
   const toggle = async (target: DirUsage) => {
-    // Process guard: never select a target owned by a running app.
+    // Process guard: never select a target owned by a running app unless opt-in override is checked.
     if (!selected.has(target.path)) {
       const hits = await B()!.GuardPath(target.path);
       setGuards(hits);
-      if (hits.some((h) => h.blocking)) {
-        setError(`Aplikasi masih jalan: ${hits.map((h) => h.name).join(', ')}. Tutup dulu sebelum memilih.`);
+      if (hits.some((h) => h.blocking) && !optInProcessGuard) {
+        setError(`Aplikasi masih jalan: ${hits.map((h) => h.name).join(', ')}. Tutup dulu atau aktifkan Opt-in Process Guard Override.`);
         return;
       }
     }
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(target.path)) next.delete(target.path); else next.add(target.path);
+      return next;
+    });
+  };
+
+  const selectEmpireDomain = (paths: string[]) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      paths.forEach((p) => next.add(p));
       return next;
     });
   };
@@ -104,7 +131,14 @@ export function App() {
   const doClean = async () => {
     setBusy('clean');
     try {
-      const result = await B()!.Clean([...selected]);
+      const cleanWithConfirm = B()!.CleanWithConfirmation;
+      const result = optInProcessGuard && cleanWithConfirm
+        ? await cleanWithConfirm([...selected], {
+            optInOverride: true,
+            confirmedProcesses: ['*'],
+            confirmationToken: `opt-in-${Date.now()}`,
+          })
+        : await B()!.Clean([...selected]);
       setConfirmOpen(false);
       setSelected(new Set());
       setPreview(null);
@@ -134,6 +168,49 @@ export function App() {
         <MetricTile label="SWEEP TARGETS" value={String(rows.length)} detail="safe & caution folders" accent="yellow" surface="ink" frame="scuffed" size="compact" />
         <MetricTile label="SELECTED" value={gb(selectedBytes)} detail={`${selected.size} folder(s)`} accent="violet" surface="ink" frame="scuffed" size="compact" />
       </div>
+
+      {watchdogAlerts.length > 0 && (
+        <Panel title="TRAY WATCHDOG & PROCESS GUARD" description="Low-disk system tray watchdog alerts and opt-in process-guard confirmation." surface="ink" frame="line" density="compact">
+          <div className="ww-toolbar">
+            {watchdogAlerts.map((alert) => (
+              <Badge key={alert.drive} variant={alert.level === 'critical' ? 'destructive' : alert.level === 'warn' ? 'magenta' : 'cyan'}>
+                {alert.tooltip}
+              </Badge>
+            ))}
+            <label className="ww-tagline" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Checkbox
+                aria-label="Opt-in Process Guard Override"
+                checked={optInProcessGuard}
+                onChange={() => setOptInProcessGuard((prev) => !prev)}
+              />
+              Opt-in Process Guard Confirmation Override
+            </label>
+          </div>
+        </Panel>
+      )}
+
+      {empire && (
+        <Panel title="EMPIRE SWEEP PANEL" description={`Unified sovereign cache audit across Antigravity, Docker, Go, Cargo, and Rocksoul (Total: ${gb(empire.totalReclaimBytes)}, Safe: ${gb(empire.safeReclaimBytes)})`} surface="ink" frame="scuffed" density="compact">
+          <table className="ww-table">
+            <thead><tr><th>Domain</th><th>Safety</th><th>Reclaimable</th><th>Files</th><th>Action</th></tr></thead>
+            <tbody>
+              {empire.groups.map((grp) => (
+                <tr key={grp.domain}>
+                  <td>{grp.label}</td>
+                  <td><SafetyBadge safety={grp.safety} /></td>
+                  <td>{gb(grp.reclaimBytes)}</td>
+                  <td>{grp.fileCount} ({grp.presentTargets} dirs)</td>
+                  <td>
+                    <Button variant="secondary" disabled={grp.presentTargets === 0} onClick={() => selectEmpireDomain(grp.paths)}>
+                      Queue Domain
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+      )}
 
       <Panel title="THE LAB — start a sweep" description="Scan a root path, or use the quick cache audit." surface="ink" frame="scuffed" density="compact">
         <div className="ww-toolbar">

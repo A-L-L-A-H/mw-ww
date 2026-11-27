@@ -42,6 +42,50 @@ export interface ProcessReport {
   blocking: boolean;
 }
 
+export interface GuardConfirmation {
+  optInOverride: boolean;
+  confirmedProcesses: string[];
+  confirmationToken: string;
+}
+
+export interface GuardDecision {
+  path: string;
+  allowed: boolean;
+  requiresConfirmation: boolean;
+  blockingProcesses: ProcessReport[];
+  reason?: string;
+}
+
+export type EmpireDomain = 'antigravity' | 'docker' | 'go' | 'cargo' | 'rocksoul';
+
+export interface EmpireCacheGroup {
+  domain: EmpireDomain;
+  label: string;
+  safety: 'safe' | 'caution' | 'protected';
+  reclaimBytes: number;
+  fileCount: number;
+  paths: string[];
+  presentTargets: number;
+}
+
+export interface EmpireSweepSummary {
+  groups: EmpireCacheGroup[];
+  totalReclaimBytes: number;
+  safeReclaimBytes: number;
+  generatedAt: string;
+}
+
+export interface TrayWatchdogAlert {
+  drive: string;
+  level: 'ok' | 'warn' | 'critical';
+  freeBytes: number;
+  usedPct: number;
+  tooltip: string;
+  requiresConfirmation: boolean;
+  recommendEmpireSweep: boolean;
+  checkedAt: string;
+}
+
 export interface HistoryRecord {
   when: string;
   kind: string;
@@ -67,9 +111,13 @@ export interface AppBindings {
   ListDrives: () => Promise<DriveInfo[]>;
   ScanPath: (path: string, maxDepth: number) => Promise<ScanReport>;
   QuickAudit: () => Promise<DirUsage[]>;
+  EmpireSweep?: () => Promise<EmpireSweepSummary>;
+  TrayWatchdog?: (autoSweepOptIn: boolean) => Promise<TrayWatchdogAlert[]>;
   GuardPath: (path: string) => Promise<ProcessReport[]>;
+  ConfirmGuard?: (path: string, confirmation: GuardConfirmation) => Promise<GuardDecision>;
   DryRun: (paths: string[]) => Promise<CleanResult>;
   Clean: (paths: string[]) => Promise<CleanResult>;
+  CleanWithConfirmation?: (paths: string[], confirmation: GuardConfirmation | null) => Promise<CleanResult>;
   History: (limit: number) => Promise<HistoryRecord[]>;
   LabNotesPath: () => Promise<string>;
   OpenCleanMgr: () => Promise<void>;

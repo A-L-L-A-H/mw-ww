@@ -51,9 +51,30 @@ func (a *App) ScanPath(path string, maxDepth int) (sweeper.ScanReport, error) {
 // QuickAudit probes known cache hotspots only.
 func (a *App) QuickAudit() []sweeper.DirUsage { return sweeper.KnownTargets() }
 
+// EmpireSweep returns the V53 Empire Sweep Panel summary for Antigravity, Docker, Go, Cargo, and Rocksoul caches.
+func (a *App) EmpireSweep() sweeper.EmpireSweepSummary {
+	return sweeper.BuildEmpireSweepSummary("")
+}
+
+// TrayWatchdog evaluates the V52 Windows tray disk watchdog status.
+func (a *App) TrayWatchdog(autoSweepOptIn bool) []sweeper.TrayWatchdogAlert {
+	cfg := sweeper.DefaultTrayWatchdogConfig()
+	cfg.AutoSweepOptIn = autoSweepOptIn
+	return sweeper.EvaluateTrayWatchdog(sweeper.ListDrives(), cfg)
+}
+
 // GuardPath checks whether a running process owns the target directory.
 func (a *App) GuardPath(path string) ([]guard.ProcessReport, error) {
 	return guard.CheckPath(path)
+}
+
+// ConfirmGuard evaluates whether a locked target path can proceed with an opt-in confirmation token.
+func (a *App) ConfirmGuard(path string, confirmation guard.GuardConfirmation) (guard.GuardDecision, error) {
+	hits, err := guard.CheckPath(path)
+	if err != nil {
+		return guard.GuardDecision{}, err
+	}
+	return guard.EvaluateConfirmation(path, hits, &confirmation), nil
 }
 
 // DryRun simulates deletion of the given paths and returns totals only.
@@ -63,19 +84,22 @@ func (a *App) DryRun(paths []string) (sweeper.CleanResult, error) {
 
 // Clean deletes the CONTENTS of the given paths after safety validation.
 func (a *App) Clean(paths []string) (sweeper.CleanResult, error) {
+	return a.CleanWithConfirmation(paths, nil)
+}
+
+// CleanWithConfirmation deletes the contents of paths while honoring an optional opt-in process-guard confirmation.
+func (a *App) CleanWithConfirmation(paths []string, confirmation *guard.GuardConfirmation) (sweeper.CleanResult, error) {
 	for _, p := range paths {
 		if blocked, reason := sweeper.ProtectedPath(p); blocked {
 			return sweeper.CleanResult{}, fmt.Errorf("%s: %s", p, reason)
 		}
-		// Backend guard: never clean a path owned by a live blocking app.
 		hits, err := guard.CheckPath(p)
 		if err != nil {
 			return sweeper.CleanResult{}, fmt.Errorf("%s: guard unavailable: %w", p, err)
 		}
-		for _, hit := range hits {
-			if hit.Blocking && hit.PID != "" {
-				return sweeper.CleanResult{}, fmt.Errorf("%s: close %s (PID %s) first", p, hit.Name, hit.PID)
-			}
+		decision := guard.EvaluateConfirmation(p, hits, confirmation)
+		if !decision.Allowed {
+			return sweeper.CleanResult{}, fmt.Errorf("%s", decision.Reason)
 		}
 	}
 	return sweeper.CleanPaths(a.ctx, paths, false)

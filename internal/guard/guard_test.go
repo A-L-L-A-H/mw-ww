@@ -36,3 +36,44 @@ func TestCheckPathSafeTempDirReturnsEmpty(t *testing.T) {
 		t.Fatalf("expected 0 process locks on isolated path, got %+v", reports)
 	}
 }
+
+func TestEvaluateConfirmationOptInProcessGuard(t *testing.T) {
+	target := `C:\Users\dev\.gemini\antigravity\worktrees`
+	reports := []ProcessReport{
+		{Name: "Antigravity", PID: "4242", Path: target, Blocking: true},
+	}
+
+	// Default: blocked without confirmation
+	denied := EvaluateConfirmation(target, reports, nil)
+	if denied.Allowed || !denied.RequiresConfirmation || len(denied.BlockingProcesses) != 1 {
+		t.Fatalf("expected blocked decision without confirmation, got %+v", denied)
+	}
+
+	// Missing token or mismatched process name still blocked
+	badConfirm := EvaluateConfirmation(target, reports, &GuardConfirmation{
+		OptInOverride:      true,
+		ConfirmedProcesses: []string{"chrome"},
+		ConfirmationToken:  "tok-1",
+	})
+	if badConfirm.Allowed || !badConfirm.RequiresConfirmation {
+		t.Fatalf("expected blocked decision for unconfirmed process, got %+v", badConfirm)
+	}
+
+	// Explicit opt-in confirmation allows override
+	allowed := EvaluateConfirmation(target, reports, &GuardConfirmation{
+		OptInOverride:      true,
+		ConfirmedProcesses: []string{"antigravity"},
+		ConfirmationToken:  "tok-override-42",
+	})
+	if !allowed.Allowed || allowed.RequiresConfirmation {
+		t.Fatalf("expected allowed decision with valid opt-in confirmation, got %+v", allowed)
+	}
+
+	// Mock process lister test via checkPathWithProcs
+	hits, err := checkPathWithProcs(target, func() ([]runningProc, error) {
+		return []runningProc{{Name: "Antigravity", PID: "9001"}}, nil
+	})
+	if err != nil || len(hits) != 1 || hits[0].PID != "9001" {
+		t.Fatalf("expected live match from injected lister, got hits=%+v err=%v", hits, err)
+	}
+}

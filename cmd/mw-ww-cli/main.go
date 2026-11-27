@@ -45,12 +45,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 
 	showDrives := fs.Bool("drives", false, "list ready drives/mountpoints")
 	showAudit := fs.Bool("audit", false, "audit drives and known cleanable targets")
+	showEmpire := fs.Bool("empire", false, "summarize Empire Sweep Panel cache domains (Antigravity, Docker, Go, Cargo, Rocksoul)")
+	showWatchdog := fs.Bool("watchdog", false, "evaluate Windows tray disk watchdog alerts")
 	scanRoot := fs.String("scan", "", "scan directory path")
 	scanDepth := fs.Int("depth", 4, "max scan directory depth")
 	scanEntries := fs.Int("max-entries", 80000, "max filesystem entries to inspect during scan")
 	cleanSafe := fs.Bool("clean-safe", false, "clean SafetySafe targets (dry-run by default unless --apply is set)")
 	dryRunFlag := fs.Bool("dry-run", true, "simulate cleanup without deleting files")
 	applyFlag := fs.Bool("apply", false, "actually delete safe cleanup targets")
+	optInGuard := fs.Bool("confirm-guard", false, "opt-in confirmation to override active process-guard locks")
 	customPath := fs.String("path", "", "explicit target directory path for --clean-safe")
 	asJSON := fs.Bool("json", false, "emit JSON output")
 	ntfyURL := fs.String("ntfy-url", strings.TrimSpace(os.Getenv("NTFY_TOPIC_URL")), "optional ntfy.sh topic URL for webhook summary")
@@ -85,6 +88,12 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if *showAudit {
 		modeCount++
 	}
+	if *showEmpire {
+		modeCount++
+	}
+	if *showWatchdog {
+		modeCount++
+	}
 	if strings.TrimSpace(*scanRoot) != "" {
 		modeCount++
 	}
@@ -94,7 +103,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if modeCount == 0 {
 		*showAudit = true
 	} else if modeCount > 1 {
-		fmt.Fprintln(stderr, "error: specify only one of --drives, --audit, --scan, or --clean-safe")
+		fmt.Fprintln(stderr, "error: specify only one of --drives, --audit, --empire, --watchdog, --scan, or --clean-safe")
 		return 2
 	}
 
@@ -112,6 +121,35 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			}
 		}
 		summary = fmt.Sprintf("mw-ww drives check: %d drives inspected", len(drives))
+
+	case *showEmpire:
+		emp := sweeper.BuildEmpireSweepSummary("")
+		if *asJSON {
+			_ = json.NewEncoder(stdout).Encode(emp)
+		} else {
+			fmt.Fprintf(stdout, "mw-ww Empire Sweep (%s): total=%s safe=%s\n",
+				emp.GeneratedAt, formatBytes(emp.TotalReclaimBytes), formatBytes(emp.SafeReclaimBytes))
+			for _, g := range emp.Groups {
+				fmt.Fprintf(stdout, "  [%s] %s (%s): %s across %d files (%d present)\n",
+					strings.ToUpper(g.Safety), g.Label, g.Domain, formatBytes(g.ReclaimBytes), g.FileCount, g.PresentTargets)
+			}
+		}
+		summary = fmt.Sprintf("mw-ww empire sweep: total=%s safe=%s",
+			formatBytes(emp.TotalReclaimBytes), formatBytes(emp.SafeReclaimBytes))
+
+	case *showWatchdog:
+		cfg := sweeper.DefaultTrayWatchdogConfig()
+		cfg.AutoSweepOptIn = *optInGuard
+		alerts := sweeper.EvaluateTrayWatchdog(sweeper.ListDrives(), cfg)
+		if *asJSON {
+			_ = json.NewEncoder(stdout).Encode(alerts)
+		} else {
+			for _, a := range alerts {
+				fmt.Fprintf(stdout, "%s\tlevel=%s\tused=%d%%\tfree=%s\tconfirm=%v\n",
+					a.Drive, a.Level, a.UsedPct, formatBytes(a.FreeBytes), a.RequiresConfirmation)
+			}
+		}
+		summary = fmt.Sprintf("mw-ww tray watchdog: %d drives evaluated", len(alerts))
 
 	case *showAudit:
 		report := buildAuditReport()
